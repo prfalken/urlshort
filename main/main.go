@@ -1,13 +1,20 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 
-	"github.com/gophercises/urlshort"
+	"github.com/prfalken/urlshort"
 )
 
+var yamlFile = flag.String("config", "config.yaml", "yaml config file")
+var dbFile = flag.String("db", "redirect.db", "BoltDB file")
+
 func main() {
+	flag.Parse()
 	mux := defaultMux()
 
 	// Build the MapHandler using the mux as the fallback
@@ -19,18 +26,23 @@ func main() {
 
 	// Build the YAMLHandler using the mapHandler as the
 	// fallback
-	yaml := `
-- path: /urlshort
-  url: https://github.com/gophercises/urlshort
-- path: /urlshort-final
-  url: https://github.com/gophercises/urlshort/tree/solution
-`
+	yaml, err := ioutil.ReadFile(*yamlFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	yamlHandler, err := urlshort.YAMLHandler([]byte(yaml), mapHandler)
 	if err != nil {
 		panic(err)
 	}
+
+	boltHandler, err := urlshort.BoltHandler(*dbFile, yamlHandler)
+	if err != nil {
+		panic(err)
+	}
+
 	fmt.Println("Starting the server on :8080")
-	http.ListenAndServe(":8080", yamlHandler)
+	http.ListenAndServe(":8080", boltHandler)
 }
 
 func defaultMux() *http.ServeMux {
